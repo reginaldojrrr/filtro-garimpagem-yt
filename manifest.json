@@ -1,0 +1,30 @@
+{
+    "manifest_version": 3,
+    "name": "Filtragem mega pica do Naldo",
+    "version": "1.0",
+    "description": "Oculta vídeos da homepage do YouTube que não seguem as métricas desejadas.",
+    "action": {
+        "default_popup": "popup.html",
+        "default_icon": {
+            "16": "icon.png"
+        }
+    },
+    "permissions": [
+        "storage",
+        "scripting"
+    ],
+    "host_permissions": [
+        "*://www.youtube.com/*"
+    ],
+    "content_scripts": [
+        {
+            "matches": [
+                "*://www.youtube.com/*"
+            ],
+            "js": [
+                "content.js"
+            ],
+            "run_at": "document_idle"
+        }
+    ]
+}
