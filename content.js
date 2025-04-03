@@ -2,9 +2,19 @@
 
 function parseNumber(str) {
     str = str.toLowerCase().replace(',', '.').replace(/\s+/g, '');
-    if (str.includes('million')) return parseFloat(str) * 1_000_000;
-    if (str.includes('milhão') || str.includes('mi')) return parseFloat(str) * 1_000_000;
-    if (str.includes('mil') || str.includes('k')) return parseFloat(str) * 1_000;
+
+    if (str.includes('milhão') || str.includes('million') || str.includes('m')) {
+        return parseFloat(str) * 1_000_000;
+    }
+
+    if (str.includes('mi')) {
+        return parseFloat(str) * 1_000_000;
+    }
+
+    if (str.includes('mil') || str.includes('k')) {
+        return parseFloat(str) * 1_000;
+    }
+
     return parseFloat(str);
 }
 
@@ -33,8 +43,8 @@ function parseDateToDays(texto) {
     }
 }
 
-function parseInscritos(str) {
-    return parseNumber(str);
+function parseInscritos(numero, sufixo) {
+    return parseNumber(numero + (sufixo || ''));
 }
 
 function videoAtendeRequisitos(inscritos, dias, views) {
@@ -58,18 +68,22 @@ function ocultarVideosInvalidos() {
             const infos = metaInfo && metaInfo.children ? [...metaInfo.children].map(el => el.textContent) : [];
 
             const innerText = video?.innerText?.toLowerCase?.() || '';
-            const inscritoTextRaw = innerText.match(/\d+[.,]?\d*\s*(milhão|mil|mi|k|million)?\s+(inscritos|subscribers)/i);
-            const inscritos = inscritoTextRaw ? parseInscritos(inscritoTextRaw[0]) : 0;
-            console.log('Inscritos detectados:', inscritoTextRaw?.[0], '-', inscritos);
+            const inscritoRegex = innerText.match(/(\d+[.,]?\d*)\s*(milhão|mil|mi|k|m|million)?\s+(inscritos|subscribers)/i);
+            const inscritos = inscritoRegex ? parseInscritos(inscritoRegex[1], inscritoRegex[2]) : 0;
+            console.log('Inscritos detectados:', inscritoRegex?.[0], '-', inscritos);
 
             let views = 0;
             let dias = 999;
 
             infos.forEach(info => {
-                if (info.toLowerCase().includes('visualiza') || info.toLowerCase().includes('views')) {
-                    views = parseNumber(info);
+                const lower = info.toLowerCase();
+
+                if (lower.includes('visualiza') || lower.includes('views')) {
+                    const clean = lower.replace(/de visualizações|visualizações|views/g, '').trim();
+                    views = parseNumber(clean);
                 }
-                if (info.toLowerCase().includes('há') || info.toLowerCase().includes('ago')) {
+
+                if (lower.includes('há') || lower.includes('ago')) {
                     dias = parseDateToDays(info);
                 }
             });
