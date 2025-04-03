@@ -48,14 +48,18 @@ function parseInscritos(numero, sufixo) {
 }
 
 function videoAtendeRequisitos(inscritos, dias, views) {
+    if (inscritos > 200000) return false; // Oculta canais com mais de 200 mil inscritos
+
     if (inscritos <= 20000) {
         if (dias <= 10 && views >= 50000) return true;
         if (dias <= 21 && views >= 100000) return true;
         if (dias <= 30 && views >= 200000) return true;
     }
-    if (inscritos >= 100000 && inscritos <= 200000 && dias <= 60 && views >= 500000) {
+
+    if (inscritos >= 100000 && dias <= 60 && views >= 500000) {
         return true;
     }
+
     return false;
 }
 
