@@ -1,33 +1,27 @@
+// Listener para detectar mudanças na configuração e recarregar a página
+chrome.storage.onChanged.addListener((changes, namespace) => {
+    if (changes.enabled) {
+        location.reload();
+    }
+});
+
 // Função para interpretar os números de forma flexível
 function parseNumber(str) {
     str = str.toLowerCase().replace(',', '.').replace(/\s+/g, '');
-
-    // Conversão para milhões (M)
     if (str.includes('m')) {
-        return Math.round(parseFloat(str) * 1_000_000); // 1M -> 1000000
+        return Math.round(parseFloat(str) * 1_000_000);
     }
-
-    // Conversão para mil (K)
-    if (str.includes('k')) return Math.round(parseFloat(str) * 1_000); // 1K -> 1000
-    
-    // Retorna como número inteiro se não for nenhuma unidade
+    if (str.includes('k')) return Math.round(parseFloat(str) * 1_000);
     return Math.round(parseFloat(str)); 
 }
 
 // Função para interpretar as views corretamente (K = 1000, M = 1000000)
 function parseViews(texto) {
-    // Regular expression para capturar as views no formato com sufixos (K, M)
-    const match = texto.match(/(\d+[.,]?\d*)\s*(K|M)\s*views/i);  // Observação: K e M maiúsculos
+    const match = texto.match(/(\d+[.,]?\d*)\s*(K|M)\s*views/i);
     if (!match) return 0;
-
-    // Captura o número e a unidade (K ou M)
     const number = match[1];
-    const unit = match[2].toUpperCase(); // Se houver unidade, pega
-
-    // Converte as views de acordo com a unidade
-    let views = parseNumber(number + unit); // Aplica a conversão com a unidade, se houver
-    
-    // Retorna o valor final de views
+    const unit = match[2].toUpperCase();
+    let views = parseNumber(number + unit);
     return views;
 }
 
@@ -35,11 +29,8 @@ function parseViews(texto) {
 function parseDateToDays(texto) {
     const match = texto.match(/(\d+)\s*(day|days|week|weeks|month|months|year|years)/i);
     if (!match) return null;
-
     const valor = parseInt(match[1]);
     const unidade = match[2].toLowerCase();
-
-    // Calculando os dias com base na unidade
     let dias;
     switch (unidade) {
         case 'day': case 'days': dias = valor; break;
@@ -48,12 +39,9 @@ function parseDateToDays(texto) {
         case 'year': case 'years': dias = valor * 365; break;
         default: dias = null; break;
     }
-
-    // Arredonda para 0 se dias for entre 0 e 1
     if (dias !== null && dias >= 0 && dias <= 1) {
         dias = 0;
     }
-
     return dias;
 }
 
@@ -61,28 +49,22 @@ function parseDateToDays(texto) {
 function parseInscritos(str) {
     const match = str.match(/(\d+[.,]?\d*)\s*(K|M)?\s*(subscribers)/i);
     if (!match) return 0;
-    
-    // Captura o número e a unidade (K ou M) se existir
     const number = match[1];
     const unit = match[2] || '';
-    
     return parseNumber(number + unit);
 }
 
 // Função que verifica se o vídeo atende aos requisitos
 function videoAtendeRequisitos(inscritos, dias, views) {
     if (inscritos > 200000) return false;
-
     if (inscritos <= 20000) {
         if (dias <= 10 && views >= 50000) return true;
         if (dias <= 21 && views >= 100000) return true;
         if (dias <= 30 && views >= 200000) return true;
     }
-
     if (inscritos >= 20001 && inscritos <= 200000) {
         if (dias <= 60 && views >= 500000) return true;
     }
-
     return false;
 }
 
@@ -91,15 +73,12 @@ function extrairInfos(video) {
     let infos = [];
     const spans = video.querySelectorAll('.inline-metadata-item');
     if (spans.length) infos = [...spans].map(el => el.textContent.trim());
-
     let views = 0;
     let dias = 999;
     const fallbackText = video.innerText.toLowerCase();
-
     if (infos.length < 2) {
-        const viewsMatch = fallbackText.match(/(\d+[.,]?\d*)\s*(K|M)\s*views/i); // K e M maiúsculos
+        const viewsMatch = fallbackText.match(/(\d+[.,]?\d*)\s*(K|M)\s*views/i);
         const dataMatch = fallbackText.match(/(\d+)\s*(day|days|week|weeks|month|months|year|years)/i);
-
         if (viewsMatch) views = parseViews(viewsMatch[0]);
         if (dataMatch) dias = parseDateToDays(dataMatch[0]);
     } else {
@@ -113,22 +92,18 @@ function extrairInfos(video) {
             }
         });
     }
-
     return { views, dias };
 }
 
 // Função que filtra os vídeos conforme os requisitos
 function filtrarVideo(video) {
     if (video.dataset.filtrado === 'true') return;
-
     const canalTextRaw = video.querySelector('#channel-name #text')?.innerText?.toLowerCase() || '';
     const inscritos = parseInscritos(canalTextRaw);
     const { views, dias } = extrairInfos(video);
-
     if (dias !== null && dias !== undefined && !videoAtendeRequisitos(inscritos, dias, views)) {
         video.style.display = 'none';
     }
-
     video.dataset.filtrado = 'true';
 }
 
@@ -136,7 +111,6 @@ function filtrarVideo(video) {
 function observarInscritos(video) {
     const alvo = video.querySelector('#channel-name #text');
     if (!alvo) return filtrarVideo(video);
-
     const observer = new MutationObserver(() => {
         const texto = alvo.innerText?.toLowerCase() || '';
         if (texto.includes('subscribers')) {
@@ -144,9 +118,7 @@ function observarInscritos(video) {
             filtrarVideo(video);
         }
     });
-
     observer.observe(alvo, { childList: true, subtree: true, characterData: true });
-
     setTimeout(() => {
         observer.disconnect();
         filtrarVideo(video);
@@ -159,31 +131,26 @@ function ocultarVideosInvalidos() {
     videos.forEach(video => observarInscritos(video));
 }
 
-// Carregar e aplicar o filtro
+// Carregar e aplicar o filtro, se ativado
 chrome.storage.local.get(['enabled'], (result) => {
     if (result.enabled === false) return;
-
     const initObserver = () => {
         const targetNode = document.querySelector('#content') || document.querySelector('ytd-rich-grid-renderer #contents');
         if (!targetNode) {
             requestAnimationFrame(initObserver);
             return;
         }
-
         ocultarVideosInvalidos();
-
         const observer = new MutationObserver((mutationsList) => {
             const added = mutationsList.some(m => m.addedNodes.length);
             if (added) {
                 setTimeout(ocultarVideosInvalidos, 500);
             }
         });
-
         observer.observe(targetNode, {
             childList: true,
             subtree: true
         });
     };
-
     initObserver();
 });
