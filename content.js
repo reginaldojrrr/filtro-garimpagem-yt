@@ -1,52 +1,92 @@
-// Versão FINAL com MutationObserver por vídeo
+// Função para interpretar os números de forma flexível
 function parseNumber(str) {
     str = str.toLowerCase().replace(',', '.').replace(/\s+/g, '');
 
-    if (str.includes('milhão') || str.includes('million') || str.includes('m')) {
-        return parseFloat(str) * 1_000_000;
+    // Conversão para milhões (M)
+    if (str.includes('m')) {
+        return Math.round(parseFloat(str) * 1_000_000); // 1M -> 1000000
     }
-    if (str.includes('mi')) return parseFloat(str) * 1_000_000;
-    if (str.includes('mil') || str.includes('k')) return parseFloat(str) * 1_000;
-    return parseFloat(str);
+
+    // Conversão para mil (K)
+    if (str.includes('k')) return Math.round(parseFloat(str) * 1_000); // 1K -> 1000
+    
+    // Retorna como número inteiro se não for nenhuma unidade
+    return Math.round(parseFloat(str)); 
 }
 
+// Função para interpretar as views corretamente (K = 1000, M = 1000000)
+function parseViews(texto) {
+    // Regular expression para capturar as views no formato com sufixos (K, M)
+    const match = texto.match(/(\d+[.,]?\d*)\s*(K|M)\s*views/i);  // Observação: K e M maiúsculos
+    if (!match) return 0;
+
+    // Captura o número e a unidade (K ou M)
+    const number = match[1];
+    const unit = match[2].toUpperCase(); // Se houver unidade, pega
+
+    // Converte as views de acordo com a unidade
+    let views = parseNumber(number + unit); // Aplica a conversão com a unidade, se houver
+    
+    // Retorna o valor final de views
+    return views;
+}
+
+// Função para transformar a data em dias, corrigindo valores baixos
 function parseDateToDays(texto) {
-    const match = texto.match(/(\d+)\s*(dia|dias|semana|semanas|mês|meses|day|days|week|weeks|month|months|year|years|ano|anos)/i);
+    const match = texto.match(/(\d+)\s*(day|days|week|weeks|month|months|year|years)/i);
     if (!match) return null;
+
     const valor = parseInt(match[1]);
     const unidade = match[2].toLowerCase();
 
+    // Calculando os dias com base na unidade
+    let dias;
     switch (unidade) {
-        case 'dia': case 'dias': case 'day': case 'days': return valor;
-        case 'semana': case 'semanas': case 'week': case 'weeks': return valor * 7;
-        case 'mês': case 'meses': case 'month': case 'months': return valor * 30;
-        case 'ano': case 'anos': case 'year': case 'years': return valor * 365;
-        default: return null;
+        case 'day': case 'days': dias = valor; break;
+        case 'week': case 'weeks': dias = valor * 7; break;
+        case 'month': case 'months': dias = valor * 30; break;
+        case 'year': case 'years': dias = valor * 365; break;
+        default: dias = null; break;
     }
+
+    // Arredonda para 0 se dias for entre 0 e 1
+    if (dias !== null && dias >= 0 && dias <= 1) {
+        dias = 0;
+    }
+
+    return dias;
 }
 
+// Função para extrair o número de inscritos
 function parseInscritos(str) {
-    const match = str.match(/(\d+[.,]?\d*)\s*(milhão|mil|mi|k|m|million)?(?:\s+de)?\s+(subscribers?|inscritos)/i);
+    const match = str.match(/(\d+[.,]?\d*)\s*(K|M)?\s*(subscribers)/i);
     if (!match) return 0;
-    return Math.round(parseNumber(match[1] + (match[2] || '')));
+    
+    // Captura o número e a unidade (K ou M) se existir
+    const number = match[1];
+    const unit = match[2] || '';
+    
+    return parseNumber(number + unit);
 }
 
+// Função que verifica se o vídeo atende aos requisitos
 function videoAtendeRequisitos(inscritos, dias, views) {
     if (inscritos > 200000) return false;
 
     if (inscritos <= 20000) {
         if (dias <= 10 && views >= 50000) return true;
-        if (dias > 10 && dias <= 21 && views >= 100000) return true;
-        if (dias > 21 && dias <= 30 && views >= 200000) return true;
+        if (dias <= 21 && views >= 100000) return true;
+        if (dias <= 30 && views >= 200000) return true;
     }
 
-    if (inscritos > 20000 && inscritos <= 200000) {
+    if (inscritos >= 20001 && inscritos <= 200000) {
         if (dias <= 60 && views >= 500000) return true;
     }
 
     return false;
 }
 
+// Função que extrai as informações de cada vídeo
 function extrairInfos(video) {
     let infos = [];
     const spans = video.querySelectorAll('.inline-metadata-item');
@@ -57,23 +97,27 @@ function extrairInfos(video) {
     const fallbackText = video.innerText.toLowerCase();
 
     if (infos.length < 2) {
-        const viewsMatch = fallbackText.match(/(\d+[.,]?\d*)\s*(milhão|mil|mi|k|m|million)?\s*(visualizações|views)/i);
-        const dataMatch = fallbackText.match(/((há\s*)?(\d+)\s*(dia|dias|semana|semanas|mês|meses|day|days|week|weeks|month|months|year|years|ano|anos))/i);
-        if (viewsMatch) views = parseNumber(viewsMatch[1] + (viewsMatch[2] || ''));
-        if (dataMatch) dias = parseDateToDays(dataMatch[1]);
+        const viewsMatch = fallbackText.match(/(\d+[.,]?\d*)\s*(K|M)\s*views/i); // K e M maiúsculos
+        const dataMatch = fallbackText.match(/(\d+)\s*(day|days|week|weeks|month|months|year|years)/i);
+
+        if (viewsMatch) views = parseViews(viewsMatch[0]);
+        if (dataMatch) dias = parseDateToDays(dataMatch[0]);
     } else {
         infos.forEach(info => {
             const lower = info.toLowerCase();
-            if (lower.includes('visualiza') || lower.includes('views')) {
-                views = parseNumber(lower.replace(/.*?(\d+[.,]?\d*).*/, '$1'));
+            if (lower.includes('views')) {
+                views = parseViews(info);
             }
-            if (lower.includes('há') || lower.includes('ago')) dias = parseDateToDays(info);
+            if (lower.includes('day') || lower.includes('week') || lower.includes('month') || lower.includes('year')) {
+                dias = parseDateToDays(info);
+            }
         });
     }
 
     return { views, dias };
 }
 
+// Função que filtra os vídeos conforme os requisitos
 function filtrarVideo(video) {
     if (video.dataset.filtrado === 'true') return;
 
@@ -81,26 +125,21 @@ function filtrarVideo(video) {
     const inscritos = parseInscritos(canalTextRaw);
     const { views, dias } = extrairInfos(video);
 
-    console.log('📌 Canal text bruto:', canalTextRaw);
-    console.log(`📊 Inscritos: ${inscritos} | Dias: ${dias} | Views: ${views}`);
-
-    if (dias !== null && !videoAtendeRequisitos(inscritos, dias, views)) {
-        console.warn('❌ Ocultando vídeo com dados:', JSON.stringify({ inscritos, dias, views }, null, 2));
+    if (dias !== null && dias !== undefined && !videoAtendeRequisitos(inscritos, dias, views)) {
         video.style.display = 'none';
-    } else {
-        console.info('✅ Permitido:', { inscritos, dias, views });
     }
 
     video.dataset.filtrado = 'true';
 }
 
+// Função que observa as mudanças no canal de cada vídeo
 function observarInscritos(video) {
     const alvo = video.querySelector('#channel-name #text');
     if (!alvo) return filtrarVideo(video);
 
     const observer = new MutationObserver(() => {
-        const texto = alvo.innerText.toLowerCase();
-        if (texto.includes('subscribers') || texto.includes('inscritos')) {
+        const texto = alvo.innerText?.toLowerCase() || '';
+        if (texto.includes('subscribers')) {
             observer.disconnect();
             filtrarVideo(video);
         }
@@ -114,11 +153,13 @@ function observarInscritos(video) {
     }, 3000);
 }
 
+// Função que oculta os vídeos que não atendem aos critérios
 function ocultarVideosInvalidos() {
     const videos = document.querySelectorAll('ytd-rich-item-renderer');
     videos.forEach(video => observarInscritos(video));
 }
 
+// Carregar e aplicar o filtro
 chrome.storage.local.get(['enabled'], (result) => {
     if (result.enabled === false) return;
 
